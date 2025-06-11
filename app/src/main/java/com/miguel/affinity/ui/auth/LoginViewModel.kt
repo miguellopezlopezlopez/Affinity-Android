@@ -14,9 +14,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import android.util.Log
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 
 @HiltViewModel
-class LoginViewModel @Inject constructor(private val authRepository: AuthRepository) : ViewModel() {
+class LoginViewModel @Inject constructor(
+    private val authRepository: AuthRepository,
+    @ApplicationContext private val context: Context
+) : ViewModel() {
 
     var isLoading by mutableStateOf(false)
         private set
@@ -27,51 +32,118 @@ class LoginViewModel @Inject constructor(private val authRepository: AuthReposit
     var errorMessage by mutableStateOf<String?>(null)
         private set
 
+    fun getContext(): Context = context
+
+    fun setError(message: String) {
+        errorMessage = message
+    }
+
     fun login(user: String, password: String) {
-        // Basic validation
+        Log.d("LoginViewModel", "Starting login process for user: $user")
+        
+        if (isLoading) {
+            Log.d("LoginViewModel", "Login already in progress, ignoring request")
+            return
+        }
+        
+        // Reset states
+        loginResult = null
+        errorMessage = null
+        
+        // Validación básica
         if (user.isBlank() || password.isBlank()) {
             errorMessage = "Por favor, completa todos los campos"
+            Log.d("LoginViewModel", "Validation failed: empty fields")
             return
         }
 
         isLoading = true
-        errorMessage = null
+        Log.d("LoginViewModel", "Starting API call")
 
         viewModelScope.launch {
-            val call = authRepository.login(user, password)
-            call.enqueue(object : Callback<LoginResponse> {
-                override fun onResponse(call: Call<LoginResponse>, response: Response<LoginResponse>) {
-                    isLoading = false
+            try {
+                val call = authRepository.login(user, password)
+                Log.d("LoginViewModel", "API call created")
+                
+                call.enqueue(object : Callback<LoginResponse> {
+                    override fun onResponse(call: Call<LoginResponse>, response: Response<LoginResponse>) {
+                        Log.d("LoginViewModel", "Got response, code: ${response.code()}")
+                        
+                        if (response.isSuccessful) {
+                            val body = response.body()
+                            Log.d("LoginViewModel", "Response body: $body")
 
-                    if (response.isSuccessful) {
-                        val body = response.body()
-                        Log.d("LoginViewModel", "Response: $body")
-
-                        if (body != null) {
-                            loginResult = body
-                            if (!body.success) {
-                                errorMessage = body.message
+                            if (body != null) {
+                                if (body.success && body.user != null) {
+                                    val username = body.user.username
+                                    Log.d("LoginViewModel", "Login successful with user: $username")
+                                    // Verificar que el username no sea null ni vacío
+                                    if (!username.isNullOrBlank()) {
+                                        loginResult = body
+                                        errorMessage = null
+                                    } else {
+                                        Log.e("LoginViewModel", "Username is null or blank")
+                                        errorMessage = "Error: Datos de usuario inválidos"
+                                        loginResult = null
+                                    }
+                                } else {
+                                    Log.d("LoginViewModel", "Login failed with message: ${body.message}")
+                                    errorMessage = body.message ?: "Error desconocido"
+                                    loginResult = null
+                                }
+                            } else {
+                                Log.e("LoginViewModel", "Response body is null")
+                                errorMessage = "Error: Respuesta vacía del servidor"
+                                loginResult = null
                             }
                         } else {
-                            errorMessage = "Respuesta vacía del servidor"
+                            handleErrorResponse(response)
                         }
-                    } else {
-                        Log.e("LoginViewModel", "Error response: ${response.errorBody()?.string()}")
-                        errorMessage = "Error del servidor: ${response.code()}"
+                        isLoading = false
                     }
-                }
 
-                override fun onFailure(call: Call<LoginResponse>, t: Throwable) {
-                    isLoading = false
-                    Log.e("LoginViewModel", "Network error", t)
-                    errorMessage = "Error de conexión: ${t.message}"
-                    loginResult = null
-                }
-            })
+                    override fun onFailure(call: Call<LoginResponse>, t: Throwable) {
+                        Log.e("LoginViewModel", "Network error", t)
+                        Log.e("LoginViewModel", "Error message: ${t.message}")
+                        errorMessage = "Error de conexión: ${t.message}"
+                        loginResult = null
+                        isLoading = false
+                    }
+                })
+            } catch (e: Exception) {
+                Log.e("LoginViewModel", "Exception during login", e)
+                errorMessage = "Error inesperado: ${e.message}"
+                loginResult = null
+                isLoading = false
+            }
         }
     }
 
+    private fun handleErrorResponse(response: Response<LoginResponse>) {
+        val errorBody = response.errorBody()?.string()
+        Log.e("LoginViewModel", "Error response code: ${response.code()}")
+        Log.e("LoginViewModel", "Error body: $errorBody")
+        
+        errorMessage = try {
+            val gson = com.google.gson.Gson()
+            val errorResponse = gson.fromJson(errorBody, LoginResponse::class.java)
+            errorResponse?.message ?: "Error del servidor: ${response.code()}"
+        } catch (e: Exception) {
+            Log.e("LoginViewModel", "Error parsing error response", e)
+            "Error del servidor: ${response.code()}"
+        }
+        loginResult = null
+    }
+
     fun clearError() {
+        Log.d("LoginViewModel", "Clearing error")
         errorMessage = null
+    }
+
+    fun clearStates() {
+        Log.d("LoginViewModel", "Clearing all states")
+        errorMessage = null
+        loginResult = null
+        isLoading = false
     }
 }

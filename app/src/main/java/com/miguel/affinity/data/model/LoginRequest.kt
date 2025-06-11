@@ -1,6 +1,6 @@
 package com.miguel.affinity.data.model
 
 data class LoginRequest(
-    val email: String,  // This will match the PHP expectation
+    val user: String,  // Campo que coincide con el backend
     val password: String
 )

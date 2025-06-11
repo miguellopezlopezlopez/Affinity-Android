@@ -7,12 +7,23 @@ data class LoginResponse(
     val message: String,
     val user: UserData? = null,
     val redirect: String? = null
-)
-
-data class UserData(
-    val id: Int,
-    val username: String,
-    val email: String,
-    @SerializedName("nombre_completo")
-    val nombreCompleto: String
-)
+) {
+    data class UserData(
+        @SerializedName("ID")
+        val id: Int,
+        @SerializedName("User")
+        val username: String,
+        @SerializedName("Email")
+        val email: String,
+        @SerializedName("Nombre")
+        val nombre: String = "",
+        @SerializedName("Apellido")
+        val apellido: String = "",
+        @SerializedName("genero")
+        val genero: String = "",
+        @SerializedName("ubicacion")
+        val ubicacion: String = "",
+        @SerializedName("foto")
+        val foto: String = ""
+    )
+}
