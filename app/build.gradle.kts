@@ -73,7 +73,7 @@ dependencies {
     kapt(libs.hilt.compiler)
     // Remove duplicate - use only one hilt navigation compose
     implementation(libs.androidx.hilt.navigation.compose)
-
+    implementation(libs.coil.compose.v250)
     // Coroutines
     implementation(libs.coroutines.android)
 }
